@@ -1,3 +1,5 @@
+![LinkerBot and MuJoCo banner](docs/images/banner.png)
+
 # linker-sim
 
 > **linker-sim has been rebuilt** (1.0): it now simulates one Linker workstation, LW-v0, on
