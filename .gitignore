@@ -30,7 +30,7 @@ CLAUDE.md
 
 # Data
 outputs/
-data/
+/data/
 episode*/
 data.json
 
