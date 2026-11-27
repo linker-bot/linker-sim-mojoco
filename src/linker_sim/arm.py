@@ -787,4 +787,3 @@ def _check(cfg: ArmActionCfg):
         raise ValueError("pose commands are points; velocities and samples need joint commands")
     if cfg.command == "pose" and cfg.body_name is None:
         raise ValueError("pose commands need body_name")
-

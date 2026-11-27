@@ -123,4 +123,3 @@ def _loop(station, front, *, step=None, seconds: float | None = None, realtime: 
             elif ahead < -0.25:  # fell behind: don't catch up
                 paced = (now, stats.decisions)
     return stats
-
