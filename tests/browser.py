@@ -26,6 +26,8 @@ from pathlib import Path
 
 from websockets.sync.client import connect
 
+CDP_TIMEOUT = 30.0  # total time for one command, including intervening events
+
 SIZE = (1600, 1000)
 """Window size [px]."""
 
@@ -70,31 +72,45 @@ class Browser:
             ],
             stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
         )  # fmt: skip
-        for _ in range(100):
-            try:
-                tabs = json.load(urllib.request.urlopen(f"http://127.0.0.1:{port}/json"))
-                break
-            except OSError:
-                time.sleep(0.1)
-        else:
-            raise RuntimeError("Chrome did not start")
-        page = next(t for t in tabs if t["type"] == "page")
-        self._ws = connect(page["webSocketDebuggerUrl"], max_size=2**28)
-        self._id = 0
-        self.log: list[dict] = []
-        """Console messages, exceptions and log entries, as the protocol reports them."""
-        self._lock = threading.Lock()
-        for domain in ("Runtime", "Log", "Page"):
-            self.call(f"{domain}.enable")
-        self.modifiers = 0
+        self._ws = None
+        try:
+            for _ in range(100):
+                try:
+                    tabs = json.load(urllib.request.urlopen(f"http://127.0.0.1:{port}/json", timeout=1))
+                    break
+                except OSError:
+                    time.sleep(0.1)
+            else:
+                raise RuntimeError("Chrome did not start")
+            page = next(t for t in tabs if t["type"] == "page")
+            self._ws = connect(page["webSocketDebuggerUrl"], max_size=2**28)
+            self._id = 0
+            self.log: list[dict] = []
+            """Console messages, exceptions and log entries, as the protocol reports them."""
+            self._lock = threading.Lock()
+            for domain in ("Runtime", "Log", "Page"):
+                self.call(f"{domain}.enable")
+            self.modifiers = 0
+        except BaseException:
+            self.close()
+            raise
 
     def call(self, method: str, **params) -> dict:
         with self._lock:
             self._id += 1
             mine = self._id
             self._ws.send(json.dumps({"id": mine, "method": method, "params": params}))
+            deadline = time.monotonic() + CDP_TIMEOUT
             while True:
-                message = json.loads(self._ws.recv())
+                remaining = deadline - time.monotonic()
+                if remaining <= 0:
+                    raise TimeoutError(f"Chrome did not answer {method} within {CDP_TIMEOUT:g} s")
+                try:
+                    message = json.loads(self._ws.recv(timeout=remaining))
+                except TimeoutError as error:
+                    raise TimeoutError(
+                        f"Chrome did not answer {method} within {CDP_TIMEOUT:g} s"
+                    ) from error
                 if message.get("id") == mine:
                     if "error" in message:
                         raise RuntimeError(f"{method}: {message['error']}")
@@ -192,13 +208,17 @@ class Browser:
 
     def close(self) -> None:
         """Quit Chrome (again: nothing); the log stays readable."""
-        if self._process.poll() is not None:
-            return
         try:
-            self._ws.close()
+            if self._ws is not None:
+                self._ws.close()
         finally:
-            self._process.terminate()
-            self._process.wait(10)
+            if self._process.poll() is None:
+                self._process.terminate()
+                try:
+                    self._process.wait(10)
+                except subprocess.TimeoutExpired:
+                    self._process.kill()
+                    self._process.wait(10)
             shutil.rmtree(self._profile, ignore_errors=True)
 
 

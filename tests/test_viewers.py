@@ -163,15 +163,19 @@ def run_with_browser(station, front, script, step=None):
     result, done = {}, threading.Event()
 
     def drive():
-        b = browser.Browser()
+        b = None
         try:
+            b = browser.Browser()
             result["value"] = script(b, url)
             result["errors"] = b.errors()
         except BaseException as error:  # re-raised below, on the test's thread
             result["error"] = error
         finally:
-            b.close()
-            done.set()
+            try:
+                if b is not None:
+                    b.close()
+            finally:
+                done.set()
 
     thread = threading.Thread(target=drive, daemon=True)
     thread.start()

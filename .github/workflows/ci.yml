@@ -1,0 +1,188 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+    tags: ['v*']
+  schedule:
+    - cron: '23 2 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+env:
+  UV_PYTHON: '3.12'
+  UV_NO_PROGRESS: '1'
+
+jobs:
+  lint:
+    name: Static checks
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+          fetch-depth: 2
+      - uses: astral-sh/setup-uv@94527f2e458b27549849d47d273a16bec83a01e9 # v7
+        with:
+          version: '0.13.10'
+          enable-cache: true
+          cache-dependency-glob: uv.lock
+          cache-suffix: lint
+      - run: uvx ruff==0.17.5 check .
+      - run: bash -n install.sh
+      - run: git diff-tree --check HEAD^ HEAD
+
+  core:
+    needs: lint
+    name: Core (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        os: ${{ fromJSON((github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' || github.ref_type == 'tag') && '["ubuntu-24.04", "ubuntu-24.04-arm", "macos-14"]' || '["ubuntu-24.04"]') }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - name: Require committed reference fixtures
+        run: python3 tools/ci.py fixtures
+      - uses: astral-sh/setup-uv@94527f2e458b27549849d47d273a16bec83a01e9 # v7
+        with:
+          version: '0.13.10'
+          enable-cache: true
+          cache-dependency-glob: uv.lock
+      - run: uv sync --locked
+      - name: Run core tests
+        run: >-
+          uv run --no-sync pytest --strict-markers
+          -m 'not gallery and not browser and not copies and not performance'
+          --timeout=120 --durations=15 --junitxml=test-results/core.xml
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        if: always()
+        with:
+          name: core-${{ matrix.os }}
+          path: test-results/
+          if-no-files-found: ignore
+          retention-days: 7
+
+  wheel:
+    needs: lint
+    name: Wheel installation
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@94527f2e458b27549849d47d273a16bec83a01e9 # v7
+        with:
+          version: '0.13.10'
+          enable-cache: true
+          cache-dependency-glob: uv.lock
+      - run: uv sync --locked --no-dev
+      - run: uv build --wheel
+      - name: Replace editable installation with the wheel
+        run: uv pip install --python .venv/bin/python --no-deps --reinstall dist/*.whl
+      - run: .venv/bin/python tools/ci.py wheel
+      - name: Check gallery packaging on extended runs
+        if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' || github.ref_type == 'tag'
+        run: .venv/bin/python tools/ci.py wheel --require-gallery
+
+  integration:
+    needs: lint
+    name: Integration (${{ matrix.group }})
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' || github.ref_type == 'tag'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        group: [gallery, browser]
+    env:
+      LINKER_SIM_BROWSER_VIEWERS: viser
+      LINKER_SIM_VIEWER_SHOTS: test-results/screenshots
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - run: python3 tools/ci.py fixtures
+      - uses: astral-sh/setup-uv@94527f2e458b27549849d47d273a16bec83a01e9 # v7
+        with:
+          version: '0.13.10'
+          enable-cache: true
+          cache-dependency-glob: uv.lock
+      - run: uv sync --locked
+      - name: Fetch and verify gallery files
+        env:
+          GH_TOKEN: ${{ secrets.GALLERY_READ_TOKEN }}
+        run: uv run --no-sync python tools/ci.py gallery
+      - name: Require Chrome for browser checks
+        if: matrix.group == 'browser'
+        run: uv run --no-sync python -c 'import sys; sys.path.insert(0, "tests"); import browser; assert browser.chrome(), "Chrome is required"'
+      - name: Run acceptance tests
+        env:
+          TEST_GROUP: ${{ matrix.group }}
+        run: >-
+          uv run --no-sync pytest -m "$TEST_GROUP" --timeout=180
+          --durations=15 --junitxml=test-results/integration.xml
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        if: always()
+        with:
+          name: integration-${{ matrix.group }}
+          path: test-results/
+          if-no-files-found: ignore
+          retention-days: 7
+
+  performance:
+    needs: lint
+    name: Real-time diagnostics
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' || github.ref_type == 'tag'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@94527f2e458b27549849d47d273a16bec83a01e9 # v7
+        with:
+          version: '0.13.10'
+          enable-cache: true
+          cache-dependency-glob: uv.lock
+      - run: uv sync --locked
+      - run: uv run --no-sync pytest tests/test_engine.py -m performance --timeout=120 --durations=10 --junitxml=test-results/performance.xml
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        if: always()
+        with:
+          name: performance
+          path: test-results/
+          if-no-files-found: ignore
+          retention-days: 7
+
+  copies:
+    needs: lint
+    name: linker-lab copy check
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' || github.ref_type == 'tag'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - name: Check out the recorded linker-lab release
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          repository: linker-bot/linker-lab
+          ref: v1.0.0
+          path: .ci-linker-lab
+          token: ${{ secrets.LINKER_LAB_READ_TOKEN || github.token }}
+          persist-credentials: false
+      - run: python3 tools/check_copies.py .ci-linker-lab
