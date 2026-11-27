@@ -16,11 +16,13 @@ cd linker-sim
 ./install.sh
 ```
 
-`install.sh` 会在需要时把 uv（Python 包管理器）安装到 `~/.local/bin`，再把 Python 3.12 和所有依赖按 `uv.lock` 中锁定的版本安装到本目录的 `.venv` 中。除了 uv 及其缓存，不会改动本目录以外的任何东西。最后它会运行 `linker-sim doctor`（见下一节）。
+`install.sh` 会在需要时把 uv（Python 包管理器）安装到 `~/.local/bin`，再把 Python 3.12 和所有依赖按 `uv.lock` 中锁定的版本安装到本目录的 `.venv` 中。uv 管理的 Python 和缓存也会保存在本目录以外；uv 安装程序还可能更新 shell 启动文件。最后它会运行 `linker-sim doctor`（见下一节）。
 
 如果安装程序安装了 uv，当前终端还找不到它（`uv: command not found`）：打开一个新终端，或运行 `source ~/.local/bin/env`。
 
-LW-v0 的机器人模型文件随安装一起装好：`uv.lock` 把它们锁定为来自 [linker-sim-assets](https://github.com/linker-bot/linker-sim-assets) 的软件包 `linker-lw-v0`。
+LW-v0 的机器人模型文件随安装一起装好：`uv.lock` 把它们锁定为来自 [linker-sim-assets](https://github.com/linker-bot/linker-sim-assets) 的软件包 `linker-lw-v0`。安装需要 `git`，但不需要初始化 submodule。当前请从 Git 检出安装：wheel 尚未包含 gallery 条目。
+
+相机位姿和内参可以通过 API 读取，但不提供仿真相机图像。旧版多机器人工作区、控制器和遥测回放的迁移说明见 [Migration from 0.1](../migration.md)。
 
 ## 2. 检查
 
@@ -75,6 +77,8 @@ uv run linker-sim gallery list
 uv run linker-sim gallery info ycb-grasp
 uv run linker-sim gallery run ycb-grasp            # 或加 --viewer viser
 ```
+
+首次运行 gallery 或第一节课时，会按 `policy-gallery/ycb-grasp/manifest.yaml` 下载策略和物体文件，校验 SHA-256，并缓存到 `${XDG_CACHE_HOME:-~/.cache}/linker-lab/gallery/ycb-grasp/`。文件校验通过后可复用，无需重复下载。
 
 在 `ycb-grasp` 中，从面板的列表里选择 31 个物体之一，按 **Drop**：物体落在桌面左半部分的随机位置；停稳后按 **Grasp**。左臂和左手把它抓起并举高 15 cm，面板显示是否抓取成功。**Reset** 清空桌面。
 
@@ -148,7 +152,7 @@ panel.button("复位", station.reset, key="r")
 | --- | --- |
 | `install.sh: linker-sim needs a Mac with Apple Silicon` | 不支持 Intel 芯片的 Mac |
 | `glibc ... is too old` | 使用更新的 Linux：x86_64 上 Ubuntu 20.04 及以上，ARM64 上 22.04 及以上 |
-| 下载返回 `404` | release 是私有的：按第 1 节手动下载 |
+| gallery 下载失败 | 按错误消息中的 URL 和目标路径手动下载；若需认证，使用已认证的客户端下载。文件的 SHA-256 仍会校验 |
 | `doctor` 仿真检查失败或低于 1× | 电脑太慢或太忙：关闭其他程序后重试，并反馈结果 |
 | 页面一直空白，或 Studio 显示 "Connecting…" | 最多等一分钟（Studio 要下载整个模型，约 290 MB）；或改用 `--viewer viser` |
 | 页面很卡，Studio 的按键延迟数秒 | 浏览器没有用 GPU 绘制：查看 `chrome://gpu`，或改用 `--viewer viser` |

@@ -90,7 +90,7 @@ packages change.
 ## Not tested yet
 
 - browsers on macOS and Linux ARM64
-- computers with an integrated GPU (Intel or Apple); being measured before the 1.0 release
+- computers with an integrated GPU (Intel or Apple); minimum requirements remain unmeasured
 - an HTTPS reverse proxy
 - several Studio spectators at once
 - Studio's desktop window

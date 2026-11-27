@@ -8,8 +8,8 @@
 | Not supported | Intel Macs: MuJoCo 4 and Warp publish no builds for them. Windows: not in this version; it will be added if users need it |
 | GPU | Not needed for the simulation. The browser that shows a viewer should draw with a GPU (see below) |
 | Disk | About 2 GB: the environment (1.4 GB on Linux), LW-v0's files (56 MB) and the gallery's files |
-| Network | For the installation only: up to 250 MB of packages and about 30 MB of LW-v0's files (from linker-sim-assets on GitHub) |
-| Software | None beforehand: `install.sh` installs uv, Python 3.12 and every package. It needs `git` (uv fetches LW-v0's files with it) and `curl` or `wget` |
+| Network | Installation downloads packages and LW-v0 files from GitHub. The gallery and first lesson also download policy and object files on first use; verified files are cached for reuse |
+| Software | `git` and `curl` or `wget` must be available: `install.sh` installs uv, Python 3.12 and every package. uv fetches LW-v0's files with `git`; no submodule initialization is required |
 | Browser | A current Chrome, Edge, Firefox or Safari with hardware-accelerated WebGL 2. Tested: Chrome |
 
 ## Speed
