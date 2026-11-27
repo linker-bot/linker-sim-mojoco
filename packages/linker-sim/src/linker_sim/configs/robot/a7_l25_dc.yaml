@@ -1,4 +1,0 @@
-# @package _global_
-robot:
-  workstation_name: a7_l25_dc
-  role_name: robot

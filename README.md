@@ -1,103 +1,75 @@
-# Workstation simulation
+# linker-sim
 
-[English](README.md) · [中文](README.zh.md)
+> **linker-sim has been rebuilt** (1.0): it now simulates one Linker workstation, LW-v0, on
+> MuJoCo 4.0, the current major release of the MuJoCo physics engine. The previous
+> multi-robot workspace (AR5, P7 and A7-lite arms; L6, O6, L25 and L30 hands; the asset
+> composer and telemetry replay) is no longer maintained and remains available at tag
+> [`v0.1.0`](https://github.com/linker-bot/linker-sim/tree/v0.1.0).
 
-Bimanual RL simulation workspace for AR5 / P7 / A7-lite arms paired
-with Linkerhand L6 / O6 / L25 / L30, running in a MuJoCo simulation
-environment with real-robot telemetry replay.
+One Linker workstation, LW-v0 (two AR5 arms with O6 hands, a table and cameras), behaving
+like the real robot, simulated with MuJoCo 4 on an ordinary CPU. No GPU needed.
 
-<table>
-  <tr>
-    <td><img src="./docs/images/o6_urdf.png" alt="o6 URDF" width="250"/></td>
-    <td><img src="./docs/images/dc_replay.gif" alt="Second Image" width="400"/></td>
-  </tr>
-</table>
+It is the same LW-v0 as in linker-lab, the company's GPU simulator: the same robot files,
+drive models, controller limits and physics settings. linker-sim runs one station at real time
+on macOS (Apple Silicon) or Linux, and shows it in your browser. It is a Python library to
+build lessons and products on, with two working examples built on it: a playground to
+drive the robot by hand, and a gallery of pretrained policies.
 
-## What this repo contains
-
-- Composer-driven workstation assets (recipe → URDF + MJCF + manifest).
-- A runtime backbone (`scripts/run.py`) that runs any composed
-  workstation under MuJoCo with selectable controllers, tasks,
-  and recorders.
-- A real-robot telemetry replayer (`scripts/replay.py`).
-- Validators, registry tools, and a CI drift gate for the asset
-  pipeline.
-
-## Project layout
-
-This repo is a `uv` workspace with two members under `packages/`:
-
-- `packages/linker-robot-assets/` — asset bundles + composer + validators.
-  - `src/linker_robot_assets/assets/components/{arms,bases,hands}/` —
-    reusable component subtrees (URDF + MJCF + meshes + `meta.yaml`).
-  - `src/linker_robot_assets/assets/workstations/<name>/` — `recipe.yaml`
-    plus generated `workstation.{urdf,mjcf}` and `manifest.yaml`.
-  - `src/linker_robot_assets/composer/` — recipe → URDF/MJCF/manifest.
-  - `src/linker_robot_assets/ci/check_drift.sh` — composer drift gate.
-- `packages/linker-sim/` — sim runtime (depends on `linker-robot-assets`).
-  - `src/linker_sim/backends/mujoco/` — MuJoCo backend implementation.
-  - `src/linker_sim/controllers/` — `joint_pd`, `osc`, `ik`.
-  - `src/linker_sim/tasks/` — task definitions.
-  - `src/linker_sim/configs/` — Hydra configs (`pkg://linker_sim.configs`).
-
-Top-level entry points and supporting trees:
-
-- `scripts/run.py` / `scripts/replay.py` — Hydra entrypoints.
-- `tests/` — pytest suite with synthetic fixtures.
-- `docs/` — architecture, installation, usage, asset and MJCF authoring guides.
-
-## Installation
-
-See [docs/installation.md](docs/installation.md). MuJoCo-only
-(Python 3.11 or 3.12, no GPU needed) — for replay, RL, and data
-collection workflows.
-
-Quick setup:
+The gallery's policy weights are for research use only (see [the gallery](docs/getting-started.md#4-the-gallery)).
+[中文快速入门](docs/zh-CN/README.md)
 
 ```bash
-# robot assets live in the linker-sim-assets submodule (git-LFS meshes)
-git submodule update --init
-git -C packages/linker-robot-assets lfs pull   # requires git-lfs installed
-
-python3 -m venv .venv-mujoco && source .venv-mujoco/bin/activate
-pip install -e packages/linker-robot-assets -e packages/linker-sim[mujoco]
+git clone https://github.com/linker-bot/linker-sim && cd linker-sim
+./install.sh                              # macOS (Apple Silicon) or Linux; installs everything into .venv
+uv run linker-sim doctor                  # checks the installation and this computer's speed
+uv run linker-sim play                    # drive LW-v0 in your browser (MuJoCo Studio)
+uv run linker-sim gallery run ycb-grasp   # a pretrained grasp policy
 ```
 
-> **Submodule + LFS.** `packages/linker-robot-assets` is a git submodule
-> ([linker-sim-assets](https://github.com/linker-bot/linker-sim-assets)),
-> pinned to a release commit. Clone with `--recurse-submodules` (or run the
-> two commands above), and `git lfs pull` inside it so the meshes materialize.
+```python
+import numpy as np
 
-> **Source-checkout only.** Use editable installs (`pip install -e`).
-> The composer assets, Hydra configs, and `scripts/` entrypoints are
-> resolved from the source tree, not from package data. Building and
-> distributing a wheel is **not** a supported workflow.
+from linker_sim import hand
+from linker_sim.workstation import Station, arm_action_cfg
 
-## Quick start
+station = Station(arm_left=arm_action_cfg("left", command="pose", frame="palm"))
+pos, quat = station.palm_pose("left")
+goal = np.concatenate(station.to_base("left", pos + (0, 0, 0.05), quat))  # palm 5 cm up
+for _ in range(60):  # one simulated second
+    station.step(arm_left=goal, hand_left=hand.PRESETS["close"])
+```
 
-After installation, the smoke test:
+## Documentation
+
+- [Getting started](docs/getting-started.md): install, check, play, the gallery, a first
+  script, troubleshooting
+- [A first lesson](docs/lesson.md): a small lesson built on the API, step by step
+  ([`examples/pick_up_a_box.py`](examples/pick_up_a_box.py))
+- [API reference](docs/api.md): everything you can build on, and the versioning rules
+- [The two viewers](docs/viewers.md): MuJoCo Studio and viser, their differences, network
+  access, embedding in your page
+- [Requirements](docs/requirements.md): supported computers, measured speeds, how to test
+  a computer
+- [Changelog](CHANGELOG.md)
+- [中文快速入门](docs/zh-CN/README.md) (Chinese: install, play, the gallery, the first lesson)
+
+## Develop
 
 ```bash
-python scripts/run.py max_steps=200 headless=true
+uv sync --locked
+uv run ruff check .
+uv run pytest
 ```
 
-For everything else (MuJoCo, replay, gain tuning, composing new
-workstations, recording episodes), see [docs/USAGE.md](docs/USAGE.md)
-([中文](docs/USAGE.zh.md)).
-
-### Browser-based replay visualization
-
-Browser-based replay visualization (WebGL, no GPU required) now lives
-in the separate [`linker-sim-viser`](https://gitea.linkerhub.work/LinkerOS/linker-sim-viser)
-repository, which consumes this repo's `linker-robot-assets` package as
-its single source of truth for robot assets.
-
-See [docs/known_limitations.md](docs/known_limitations.md) for the
-hand-decoder linear-fit caveat and the UMI-Dex path-hack TODO.
-
-## Development notes
-
-- Keep generated artifacts out of git (`__pycache__`, virtual envs,
-  logs); composed workstation files (`workstation.urdf`,
-  `workstation.mjcf`, `manifest.yaml`) **are** committed.
-- Put feature work on dedicated branches and commit before switching.
+- The tests are linker-sim's acceptance checks: LW-v0 loads unchanged, home holds, the
+  drive reference replays, pose commands settle, the gallery grasps, both viewers work.
+- They also check the docs: `docs/api.md` must list exactly each public module's
+  `__all__`, and every Python example in the README and `docs/` must run.
+- The viewer tests open both viewers in headless Chrome and skip without it; set `CHROME`
+  to its path if it is not found.
+- `LINKER_SIM_BROWSER_VIEWERS=viser` opens viser only. CI does: without a GPU, Chrome
+  draws LW-v0 too slowly for Studio's input. Run the Studio ones on a computer with a GPU
+  before merging.
+- The arm and hand models, the reading of LW-v0's files and the gallery's policy code are
+  copied from linker-lab and must stay identical: `uv run python tools/check_copies.py <linker-lab
+  checkout>` compares them.

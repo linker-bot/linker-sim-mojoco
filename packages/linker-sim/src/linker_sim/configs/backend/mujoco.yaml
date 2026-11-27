@@ -1,4 +1,0 @@
-# @package _global_
-backend:
-  name: mujoco
-  dt: ${div:1,500}
