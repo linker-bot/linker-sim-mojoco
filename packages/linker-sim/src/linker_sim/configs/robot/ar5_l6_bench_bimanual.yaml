@@ -1,4 +1,0 @@
-# @package _global_
-robot:
-  workstation_name: ar5_l6_bench_bimanual
-  role_name: robot

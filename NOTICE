@@ -1,0 +1,9 @@
+linker-sim
+Copyright 2026 Linkerbot (Beijing) Technology Co., Ltd.
+
+Licensed under the Apache License, Version 2.0 (LICENSE).
+
+The arm servo model and the hand motor model (src/linker_sim/arm.py, src/linker_sim/hand.py)
+are derived from the Linker drive models in linker-sim-isaac, under the MIT License; its
+notice is in src/linker_sim/NOTICE. The ycb-grasp gallery entry's notices are in
+policy-gallery/ycb-grasp/NOTICE.
