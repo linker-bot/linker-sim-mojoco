@@ -4,7 +4,7 @@ From nothing to the robot moving in your browser: install, check, play, the gall
 your first script. It takes about ten minutes, most of it downloading.
 
 You need a Mac with Apple Silicon or a Linux computer (x86_64 or ARM64), about 2 GB of
-disk, and a browser. No GPU is needed for the simulation. See
+disk, `git`, and a browser. No GPU is needed for the simulation. See
 [requirements](requirements.md) for details.
 
 ## 1. Install
@@ -19,7 +19,8 @@ cd linker-sim
 
 `install.sh` installs uv (a Python package manager) into `~/.local/bin` if you don't have
 it, then Python 3.12 and every package into `.venv` in this folder, exactly as pinned in
-`uv.lock`. Nothing outside the folder changes except uv and its caches. At the end it runs
+`uv.lock`. uv also stores managed Python installations and caches outside this folder,
+and its installer may update shell startup files. At the end it runs
 `linker-sim doctor` (next section).
 
 If the installer installed uv, this terminal doesn't find it yet (`uv: command not found`):
@@ -27,7 +28,8 @@ open a new terminal, or run `source ~/.local/bin/env`.
 
 LW-v0's robot files come with the installation: the package `linker-lw-v0` from
 [linker-sim-assets](https://github.com/linker-bot/linker-sim-assets) at its release tag
-`v1.0.0`, which uv fetches with `git`.
+`v1.0.0`, which uv fetches with `git`. No `git submodule update` is needed.
+Use this Git checkout for now: the wheel does not include the gallery entries.
 
 ## 2. Check
 
@@ -98,6 +100,13 @@ uv run linker-sim gallery list
 uv run linker-sim gallery info ycb-grasp
 uv run linker-sim gallery run ycb-grasp            # or --viewer viser
 ```
+
+The first run downloads `policy.npz` and `objects.npz` from the URLs in
+`policy-gallery/ycb-grasp/manifest.yaml`. Files are checked against the manifest's
+SHA-256 values and cached under `${XDG_CACHE_HOME:-~/.cache}/linker-lab/gallery/ycb-grasp/`.
+The first lesson uses these files too. If a release requires authentication, use the
+URL and destination in the error message to download the files with an authenticated
+client; subsequent runs reuse files whose checksums match.
 
 In `ycb-grasp`, choose one of 31 objects in the panel's list and press **Drop**: it lands at
 a random spot on the left half of the table. Once it rests there, press **Grasp**. The left arm and hand pick it up and hold it 15 cm
