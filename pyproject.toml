@@ -37,6 +37,7 @@ dev = [
     # The viewer tests: screenshots, and Chrome's DevTools protocol (tests/browser.py).
     "pillow>=10",
     "pytest>=8.3,<10",
+    "pytest-timeout>=2.4,<3",
     # The arm generator's reference (tests/test_arm.py), the version linker-lab tests with.
     # No Linux ARM64 wheel: those tests skip there rather than compile it from source.
     "ruckig==0.19.4; platform_machine != 'aarch64'",
@@ -76,7 +77,13 @@ packages = ["src/linker_sim"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-addopts = "-ra"
+addopts = "-ra --strict-markers"
+markers = [
+    "gallery: requires the gallery policy and object artifacts",
+    "browser: headless browser acceptance checks",
+    "copies: requires a linker-lab checkout at the recorded release",
+    "performance: includes a wall-clock real-time requirement",
+]
 
 [tool.ruff]
 line-length = 100
